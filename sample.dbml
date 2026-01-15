@@ -1,0 +1,21 @@
+// Table definition for users
+Table users {
+  id integer [primary key, increment] // Auto-incrementing ID
+  username varchar
+    email varchar [unique]
+  created_at timestamp
+}
+
+/*
+  Multi-line comment
+  about posts
+*/
+Table posts{
+id integer [primary key]
+  user_id integer
+title varchar
+body text [note: 'Content of the post']
+}
+
+// Reference link
+Ref: posts.user_id > users.id
