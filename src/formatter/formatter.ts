@@ -35,6 +35,8 @@ export function format(input: string, options: FormatterOptions = {}): string {
     };
 
     const multilineArrayStack: boolean[] = [];
+    const blockStack: string[] = []; // Track blocks like 'Table', 'Enum'
+    let currentLineWordCount = 0; // Track word index in current line (1-based)
 
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
@@ -45,6 +47,9 @@ export function format(input: string, options: FormatterOptions = {}): string {
         if (token.type === TokenType.Whitespace) {
             const newlines = (token.value.match(/\n/g) || []).length;
             if (newlines > 0) {
+                 // Reset word count on newline
+                 currentLineWordCount = 0;
+
                 const toPrint = Math.min(newlines, 2); 
                 // Determine if we should append newlines
                 if (!output.endsWith('\n')) {
@@ -96,13 +101,65 @@ export function format(input: string, options: FormatterOptions = {}): string {
         switch (token.type) {
             case TokenType.Symbol:
                 if (token.value === '{') {
+                    // Start of block. Identify block type from previous tokens.
+                    // Look back for last non-whitespace word.
+                    let backIndex = i - 1;
+                    // Skip whitespace backwards in tokens array? 
+                    // Tokens array contains whitespace tokens.
+                    while(backIndex >= 0 && (tokens[backIndex].type === TokenType.Whitespace || tokens[backIndex].type === TokenType.Comment)) {
+                        backIndex--;
+                    }
+                    if (backIndex >= 0 && tokens[backIndex].type === TokenType.Word) {
+                         // But `Table tables_name {` -> identifying word is `Table` which is further back.
+                         // Or `Table {` (if unnamed? unlikely).
+                         // We need the *keyword* that started this statement.
+                         // This is tricky without a proper parser.
+                         // Heuristic: If we are indentLevel 0, the first word of the line is likely the keyword.
+                         // BUT we are in a simple loop.
+                         
+                         // Let's assume the word immediately preceding `{` is the name, 
+                         // and the word before THAT (skipping name) is BlockType.
+                         // Example: `Table users {`
+                         // tokens[backIndex] = `users`
+                         // tokens[furtherBack] = `Table`
+                         
+                         // BUT: `Project {` -> tokens[backIndex] = `Project`
+                         
+                         // Let's rely on standard DBML structure.
+                         // If previous word is capitalized? No.
+                         // Let's check the word at the START of the current logical line/statement.
+                         // We don't easily know that.
+                         
+                         // Simplification: just push 'Block' to stack.
+                         // But we need to know if it is 'Table'.
+                         
+                         // Let's search backwards for a known keyword (Table, Enum, Ref, Project, TableGroup).
+                         // Stop at `}` or `;` or start of file.
+                         let searchIndex = backIndex;
+                         let blockType = 'Unknown';
+                         while (searchIndex >= 0) {
+                             const t = tokens[searchIndex];
+                             if (t.type === TokenType.Symbol && (t.value === '}' || t.value === '{')) break;
+                             if (t.type === TokenType.Word) {
+                                 if (['Table', 'Enum', 'Project', 'Ref', 'TableGroup'].includes(t.value)) {
+                                     blockType = t.value;
+                                     break;
+                                 }
+                             }
+                             searchIndex--;
+                         }
+                         blockStack.push(blockType);
+                    } else {
+                        blockStack.push('Unknown');
+                    }
+
                     output += '{';
                     output += '\n';
                     indentLevel++;
-                    // Force next token to start on new line/indent
-                    // (Loop will handle indent via output.endsWith('\n') check)
+                    currentLineWordCount = 0;
                 } else if (token.value === '}') {
-                    // Decrease indent before printing
+                    blockStack.pop();
+                    
                     if (!output.endsWith('\n')) {
                         output += '\n';
                     }
@@ -112,6 +169,7 @@ export function format(input: string, options: FormatterOptions = {}): string {
                         output += getIndent();
                     }
                     output += '}';
+                    currentLineWordCount = 0;
                 } else if (token.value === '[') {
                     const isMultiline = checkArrayMultiline(i);
                     multilineArrayStack.push(isMultiline);
@@ -157,9 +215,41 @@ export function format(input: string, options: FormatterOptions = {}): string {
                     val = `"${escaped}"`;
                 }
                 output += val;
+                currentLineWordCount++;
                 break;
 
             case TokenType.Word:
+                let wordVal = token.value;
+                currentLineWordCount++; // Valid word found
+                
+                // Rule: Apply double quote over data type (e.g. `int` -> `"int"`)
+                // Only if we are inside a `Table` block, NOT inside `[]` (settings), and it is the 2nd word?
+                // Example: `id int [pk]` -> `id` (1), `int` (2). 
+                // `username varchar` -> `username` (1), `varchar` (2).
+                // `created_at timestamp` -> `created_at` (1), `timestamp` (2).
+                
+                // Check if inside Table
+                const currentBlock = blockStack.length > 0 ? blockStack[blockStack.length - 1] : null;
+                const insideSettings = multilineArrayStack.length > 0; // Or just inside brackets? 
+                
+                // `multilineArrayStack` tracks `[` ... `]`.
+                // Actually we need to know if we are inside ANY square brackets `[]`.
+                // My `multilineArrayStack` only tracks IF multiline. 
+                // But existence of entry implies inside `[]`.
+                
+                // Oops, `multilineArrayStack` logic in switch above:
+                // push on `[`, pop on `]`. 
+                // So `multilineArrayStack.length > 0` means we are inside brackets.
+                
+                if (currentBlock === 'Table' && !insideSettings && currentLineWordCount === 2) {
+                    // This is likely the data type.
+                    // Quote it.
+                    wordVal = `"${wordVal}"`;
+                }
+                
+                output += wordVal;
+                break;
+                
             case TokenType.Unknown:
             case TokenType.Comment:
                 // Special handling for Comment: if line comment, ensure newline after?
