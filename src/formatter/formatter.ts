@@ -17,125 +17,155 @@ export function format(input: string, options: FormatterOptions = {}): string {
     // Helper to get current indentation string
     const getIndent = () => oneIndent.repeat(Math.max(0, indentLevel));
 
+    // Helper to find matching bracket and check if it contains comma
+    const checkArrayMultiline = (startIdx: number): boolean => {
+        let depth = 1;
+        let hasComma = false;
+        for (let i = startIdx + 1; i < tokens.length; i++) {
+            if (tokens[i].type === TokenType.Symbol && tokens[i].value === '[') depth++;
+            if (tokens[i].type === TokenType.Symbol && tokens[i].value === ']') depth--;
+            
+            if (depth === 1 && tokens[i].type === TokenType.Symbol && tokens[i].value === ',') {
+                hasComma = true;
+            }
+            
+            if (depth === 0) return hasComma;
+        }
+        return false;
+    };
+
+    const multilineArrayStack: boolean[] = [];
+
     for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
-        const prev = i > 0 ? tokens[i - 1] : null;
         const next = i < tokens.length - 1 ? tokens[i + 1] : null;
 
-        // Skip tokens we want to effectively "eat" or handle via previous/next logic, 
-        // though usually we handle them in place. This loop processes current token.
+        // Skip whitespace tokens completely for logic, handle spacing manually based on context
+        // BUT we need to respect paragraph breaks (empty lines) from original source
+        if (token.type === TokenType.Whitespace) {
+            const newlines = (token.value.match(/\n/g) || []).length;
+            if (newlines > 0) {
+                const toPrint = Math.min(newlines, 2); 
+                // Determine if we should append newlines
+                if (!output.endsWith('\n')) {
+                    output += '\n'.repeat(toPrint);
+                } else {
+                    // Already have at least one newline
+                    if (toPrint > 1 && !output.endsWith('\n\n')) {
+                        output += '\n';
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Before printing token, handle required spacing/indentation
+        
+        // Ensure indentation if we are at start of a line
+        if (output.endsWith('\n')) {
+             // Exception: if token is '}', we decrease indent before printing, handled in switch
+             if (token.value !== '}') {
+                output += getIndent();
+             }
+        } else if (output.length > 0) {
+            // Logic for space between tokens
+            // Default: add space if prev wasn't space/newline and we are not in special no-space case
+            let needsSpace = true;
+            
+            const lastChar = output[output.length - 1];
+            if (lastChar === ' ' || lastChar === '\n' || lastChar === '(' || lastChar === '[' || lastChar === '.') {
+                needsSpace = false;
+            }
+            
+            if (token.type === TokenType.Symbol) {
+                 if (token.value === ',' || token.value === ']' || token.value === ')' || token.value === '.' || token.value === ':') {
+                     needsSpace = false;
+                 }
+                 // Special case: Ref: > or < or -
+                 if (['<', '>', '-'].includes(token.value)) {
+                     // Ensure space before
+                     // handled by default needsSpace=true
+                 }
+            }
+
+            if (needsSpace) {
+                output += ' ';
+            }
+        }
 
         switch (token.type) {
-            case TokenType.Whitespace:
-                // Handle newlines
-                const newlines = (token.value.match(/\n/g) || []).length;
-                if (newlines > 0) {
-                    // Max 2 consecutive newlines (1 empty line)
-                    const toPrint = Math.min(newlines, 2); 
-                    output += '\n'.repeat(toPrint);
-                    
-                    // If the NEXT token is NOT a newline or end of file, we apply indentation
-                    // But we must check if the next token is '}' which reduces indentation
-                    if (next && next.type === TokenType.Symbol && next.value === '}') {
-                        output += oneIndent.repeat(Math.max(0, indentLevel - 1));
-                    } else if (next) {
-                        output += getIndent();
-                    }
-                } else {
-                    // Just spaces/tabs within a line
-                    // We might want to collapse to single space, unless it's aligning something?
-                    // For now, collapse to single space if it's not empty string
-                     if (token.value.length > 0) {
-                         // Check special case: if previous was '{', we might want a newline instead of space
-                         // But usually '{' is followed by newline in our logic below.
-                         
-                         // If prev was ':', we want a space.
-                         // If next is ']', we might NOT want a space if prev was something else? 
-                         // Let's stick to simple: output one space.
-                         // BUT, don't output space if output ends with newline
-                         if (output.length > 0 && !output.endsWith('\n') && !output.endsWith(' ')) {
-                             output += ' ';
-                         }
-                     }
-                }
-                break;
-
             case TokenType.Symbol:
                 if (token.value === '{') {
-                    // Space before { if not start of line
-                    if (output.length > 0 && !output.endsWith('\n') && !output.endsWith(' ')) {
-                        output += ' ';
-                    }
                     output += '{';
+                    output += '\n';
                     indentLevel++;
-                    // If next is NOT a newline (or whitespace containing newline), force one
-                    const nextHasNewline = next && next.type === TokenType.Whitespace && next.value.includes('\n');
-                    if (!nextHasNewline) {
-                        output += '\n' + getIndent();
-                    }
+                    // Force next token to start on new line/indent
+                    // (Loop will handle indent via output.endsWith('\n') check)
                 } else if (token.value === '}') {
-                     if (!output.endsWith('\n') && !output.endsWith(getIndent()) && prev && prev.type !== TokenType.Whitespace) {
-                         output += '\n';
-                         indentLevel--; 
-                         output += getIndent(); 
-                         indentLevel++; 
-                     }
-                     output += '}';
-                     indentLevel--; 
-                } else if (token.value === ':') {
-                     output += ':';
-                     if (next && next.type !== TokenType.Whitespace && next.type !== TokenType.Symbol) {
-                         output += ' ';
-                     }
-                } else if (token.value === ',') {
-                     output += ',';
-                     // Space after comma
-                     output += ' ';
+                    // Decrease indent before printing
+                    if (!output.endsWith('\n')) {
+                        output += '\n';
+                    }
+                    indentLevel--;
+                    
+                    if (output.endsWith('\n')) {
+                        output += getIndent();
+                    }
+                    output += '}';
                 } else if (token.value === '[') {
-                    // Space before [ if not after newline
-                    if (output.length > 0 && !output.endsWith('\n') && !output.endsWith(' ')) {
-                        output += ' ';
-                    }
+                    const isMultiline = checkArrayMultiline(i);
+                    multilineArrayStack.push(isMultiline);
+                    
                     output += '[';
-                } else {
-                    // Other symbols like . > - <
-                    // Some need spaces, some don't.
-                    if (['>', '<', '-'].includes(token.value)) {
-                         // Space before?
-                         if (output.length > 0 && !output.endsWith(' ') && !output.endsWith('\n')) {
-                            output += ' ';
-                         }
-                         output += token.value;
-                         // Space after?
-                         if (next && next.type !== TokenType.Whitespace) {
-                            output += ' ';
-                         }
-                    } else {
-                        output += token.value;
+                    if (isMultiline) {
+                        output += '\n';
+                        indentLevel++;
                     }
+                } else if (token.value === ']') {
+                    const isMultiline = multilineArrayStack.pop();
+                    
+                    if (isMultiline) {
+                        if (!output.endsWith('\n')) {
+                            output += '\n';
+                        }
+                        indentLevel--;
+                        if (output.endsWith('\n')) {
+                            output += getIndent();
+                        }
+                    }
+                    output += ']';
+                } else if (token.value === ',') {
+                    output += ',';
+                    // If inside multiline array, append newline
+                    const currentMultiline = multilineArrayStack.length > 0 && multilineArrayStack[multilineArrayStack.length - 1];
+                    if (currentMultiline) {
+                        output += '\n';
+                    }
+                } else {
+                    output += token.value;
                 }
                 break;
 
-            case TokenType.Comment:
-                // Comments should just be appended.
-                // If it's a line comment `//`, it extends to newline.
-                // We should ensure space before it if it's on the same line as code
-                if (token.value.startsWith('//')) {
-                     if (output.length > 0 && !output.endsWith('\n') && !output.endsWith(' ')) {
-                         output += ' ';
-                     }
-                }
-                output += token.value;
-                break;
-            
             case TokenType.String:
+                let val = token.value;
+                // Rule: Datatype for field always use double qoute
+                // We assume this means all string literals.
+                if (val.startsWith("'") && !val.startsWith("'''")) {
+                    const content = val.slice(1, -1);
+                    // Escape double quotes inside
+                    const escaped = content.replace(/"/g, '\\"');
+                    val = `"${escaped}"`;
+                }
+                output += val;
+                break;
+
             case TokenType.Word:
             case TokenType.Unknown:
-                // Just append
-                // Ensure separation if prev was Word? `intpk` -> `int pk`
-                if (prev && (prev.type === TokenType.Word || prev.type === TokenType.String) && !output.endsWith(' ') && !output.endsWith('\n')) {
-                    output += ' ';
-                }
+            case TokenType.Comment:
+                // Special handling for Comment: if line comment, ensure newline after?
+                // Tokenizer for Comment includes `// ...`.
+                // If it is `//`, it usually signifies rest of line.
+                // We should ensure next thing is on newline.
                 output += token.value;
                 break;
         }
