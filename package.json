@@ -4,7 +4,8 @@
   "description": "",
   "files": [
     "bin",
-    "src"
+    "src",
+    "tsconfig.json"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -13,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "bin": {
-    "dbml-formatter": "./bin/dbml-formatter.js"
+    "dbml-formatter": "./bin/dbml-formatter"
   },
   "dependencies": {
     "@dbml/core": "^5.4.1",
