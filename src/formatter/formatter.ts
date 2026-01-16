@@ -702,12 +702,15 @@ function processTokens(
 ): string {
     
     let localOutput = '';
-    let currentIndentLevel = baseIndentLevel;
     const oneIndent = indentChar.repeat(indentSize);
-    const getLocalIndent = () => oneIndent.repeat(Math.max(0, currentIndentLevel));
     
-    // ... multiline stack and checkArrayMultiline ...
-     const checkArrayMultiline = (startIdx: number): boolean => {
+    // Stack of indentation strings. Start with base indent.
+    const indentStack: string[] = [oneIndent.repeat(Math.max(0, baseIndentLevel))];
+    
+    // Helper to get current indentation
+    const getCurrentIndent = () => indentStack[indentStack.length - 1];
+    
+    const checkArrayMultiline = (startIdx: number): boolean => {
          let depth = 1;
          let hasComma = false;
          for (let k = startIdx + 1; k < tokens.length; k++) {
@@ -740,10 +743,10 @@ function processTokens(
             continue;
         }
 
-        // Corrected Spacing/Indent Logic for processTokens:
+        // Spacing/Indent Logic
         if (localOutput.length === 0 || localOutput.endsWith('\n')) {
              if (token.value !== '}') {
-                 localOutput += getLocalIndent();
+                 localOutput += getCurrentIndent();
              }
         } else {
              // Not start of line
@@ -760,33 +763,61 @@ function processTokens(
             if (needsSpace) localOutput += ' ';
         }
 
-
-
         switch (token.type) {
              case TokenType.Symbol:
                  if (token.value === '{') {
                       localOutput += '{\n';
-                      currentIndentLevel++;
+                      indentStack.push(getCurrentIndent() + oneIndent);
                  } else if (token.value === '}') {
                       if (!localOutput.endsWith('\n')) localOutput += '\n';
-                      currentIndentLevel--;
-                      localOutput += getLocalIndent() + '}';
+                      if (indentStack.length > 1) indentStack.pop();
+                      localOutput += getCurrentIndent() + '}';
                  } else if (token.value === '[') {
                       const isMultiline = checkArrayMultiline(i);
                       multilineArrayStack.push(isMultiline);
+                      
+                      const preBracketLength = localOutput.length;
+                      const lastNewline = localOutput.lastIndexOf('\n');
+                      
                       localOutput += '[';
+                      
                       if (isMultiline) {
-                          localOutput += '\n';
-                          currentIndentLevel++;
+                          // Calculate visual column for Anchor
+                          let visualColOfBracket = 0;
+                          for(let c=lastNewline + 1; c < preBracketLength; c++) {
+                               if (localOutput[c] === '\t') visualColOfBracket += (indentSize - (visualColOfBracket % indentSize));
+                               else visualColOfBracket += 1;
+                          }
+                          
+                          const anchorIndent = ' '.repeat(visualColOfBracket);
+                          // Push Anchor first (for the closing bracket)
+                          indentStack.push(anchorIndent);
+                          // Push Anchor + Indent (for the content)
+                          indentStack.push(anchorIndent + oneIndent);
+                          
+                          localOutput += '\n'; 
                       }
                  } else if (token.value === ']') {
                       const isMultiline = multilineArrayStack.pop();
                       if (isMultiline) {
-                          if (!localOutput.endsWith('\n')) localOutput += '\n';
-                          currentIndentLevel--;
-                          if (localOutput.endsWith('\n')) localOutput += getLocalIndent();
+                          // Ensure new line if content exists on current line
+                          const lastLineFormatted = localOutput.substring(localOutput.lastIndexOf('\n') + 1);
+                          if (lastLineFormatted.trim().length > 0) {
+                              localOutput += '\n';
+                          }
+                          
+                          // We are currently at Content Indent.
+                          // Pop to get back to Anchor Indent.
+                          indentStack.pop();
+                          
+                          localOutput += getCurrentIndent(); // Anchor Indent
+                          localOutput += ']';
+                          
+                          // Pop Anchor Indent
+                          indentStack.pop();
+                      } else {
+                          localOutput += ']';
                       }
-                      localOutput += ']';
                  } else if (token.value === ',') {
                       localOutput += ',';
                       const currentMultiline = multilineArrayStack.length > 0 && multilineArrayStack[multilineArrayStack.length - 1];
@@ -797,21 +828,21 @@ function processTokens(
                  break;
              
              case TokenType.Word:
-                  // Handle keyword PascalCase in buffer
-                  if (token.value.toLowerCase() === 'table') token.value = 'Table';
-                  if (token.value.toLowerCase() === 'ref') token.value = 'Ref';
-                  if (token.value.toLowerCase() === 'note') {
-                       // Peek locally inside tokens list
-                        let nextIdx = i + 1;
-                        while(nextIdx < tokens.length && (tokens[nextIdx].type === TokenType.Whitespace || tokens[nextIdx].type === TokenType.Comment)) {
-                            nextIdx++;
-                        }
-                        if (nextIdx < tokens.length && tokens[nextIdx].type === TokenType.Symbol && tokens[nextIdx].value === ':') {
-                            token.value = 'Note';
-                        }
-                  }
-                  localOutput += token.value;
-                  break;
+                   // Handle keyword PascalCase
+                   if (token.value.toLowerCase() === 'table') token.value = 'Table';
+                   if (token.value.toLowerCase() === 'ref') token.value = 'Ref';
+                   if (token.value.toLowerCase() === 'note') {
+                        // Peek locally inside tokens list
+                         let nextIdx = i + 1;
+                         while(nextIdx < tokens.length && (tokens[nextIdx].type === TokenType.Whitespace || tokens[nextIdx].type === TokenType.Comment)) {
+                             nextIdx++;
+                         }
+                         if (nextIdx < tokens.length && tokens[nextIdx].type === TokenType.Symbol && tokens[nextIdx].value === ':') {
+                             token.value = 'Note';
+                         }
+                   }
+                   localOutput += token.value;
+                   break;
 
              case TokenType.String:
                 let val = token.value;
@@ -824,10 +855,10 @@ function processTokens(
                 break;
                 
              default:
-                localOutput += token.value;
-                break;
+                  localOutput += token.value;
+                  break;
         }
-
+        
         if (token.padRight) {
              localOutput += ' '.repeat(token.padRight);
         }
