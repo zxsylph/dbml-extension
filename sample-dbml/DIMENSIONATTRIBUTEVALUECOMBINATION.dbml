@@ -1,0 +1,95 @@
+Table DIMENSIONATTRIBUTEVALUECOMBINATION {
+    Note: "เก็บข้อมูลของ FD 01-15 ถ้าต้องการรายละเอียดที่ถูกต้องจริงๆ ต้องไปที่ DimensionFinancialTag"
+
+    FD01_COSTCENTER "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD01_COSTCENTERVALUE "nvarchar(30)" [note:"FD 01 = หน่วยงาน"]
+
+    FD02_WORKPLAN "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD02_WORKPLANVALUE "nvarchar(30)" [note:"FD 02 = แผนงาน"]
+
+    FD03_BUDGETPROJECT "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD03_BUDGETPROJECTVALUE "nvarchar(30)" [note:"FD 03 = งบประมาณโครงการ"]
+
+    FD04_REVENUE_EXPENSE "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD04_REVENUE_EXPENSEVALUE "nvarchar(30)" [note:"FD 04 = หมวดรายรับ/รายจ่าย"]
+
+    FD05_SOURCE "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD05_SOURCEVALUE "nvarchar(30)" [note:"FD 05 = แหล่งเงิน"]
+
+    FD06_BUDGETYEAR "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD06_BUDGETYEARVALUE "nvarchar(30)" [note:"FD 06 = ปีงบประมาณ"]
+
+    FD07_BUDGETID "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD07_BUDGETIDVALUE "nvarchar(30)" [note:"FD 07 = รหัสจองงบประมาณ"]
+
+    FD08_RELATED "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD08_RELATEDVALUE "nvarchar(30)" [note:"FD 08 = ข้อมูลระหว่างกัน"]
+
+    FD09_REFERCOSTCENTER "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD09_REFERCOSTCENTERVALUE "nvarchar(30)" [note:"FD 09 = หน่วยงานอ้างอิง"]
+
+    FD10_TAXBRANCH "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD10_TAXBRANCHVALUE "nvarchar(30)" [note:"FD 10 = สาขาภาษี (00000)"]
+
+    FD11_PURPOSE1 "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD11_PURPOSE1VALUE "nvarchar(30)" [note:"FD 11 = วิเคราะห์รหัสบัญชี"]
+
+    FD12_PURPOSE2 "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD12_PURPOSE2VALUE "nvarchar(30)" [note:"FD 12 = วิเคราะห์รหัสทุนภายนอก/ภายใน"]
+
+    FD13_PURPOSE3 "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD13_PURPOSE3VALUE "nvarchar(30)" [note:"FD 13 = วิเคราะห์เงินบริจาค"]
+
+    FD14_PURPOSE4 "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD14_PURPOSE4VALUE "nvarchar(30)" [note:"FD 14 = วิเคราะห์โครงการวิจัยและบริการ"]
+
+    FD15_PURPOSE5 "bigint(19)" [
+        ref: > DIMENSIONFINANCIALTAG.RECID,
+        note:"เก็บ RECID เพื่อเชื่อมไปที่ DimensionFinancialTag"
+    ]
+    FD15_PURPOSE5VALUE "nvarchar(30)" [note:"FD 15 = วิเคราะห์อื่น ๆ"]
+
+    RECID "bigint" [pk, note:""]
+}

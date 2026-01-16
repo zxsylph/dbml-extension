@@ -186,43 +186,45 @@ export function format(input: string, options: FormatterOptions = {}): string {
                  }
 
                  // OPTIONAL: Sort Fields within groups
+                 // 1. Normalize groups: Detach "Gap" (extra newlines) from content lines.
+                 {
+                      const normalized: Token[][] = [];
+                      
+                      for (const line of otherLinesGroups) {
+                          const last = line[line.length - 1];
+                          let hasExtraNewline = false;
+                          
+                          if (last && last.type === TokenType.Whitespace) {
+                              const newlineCount = (last.value.match(/\n/g) || []).length;
+                              if (newlineCount > 1) {
+                                   hasExtraNewline = true;
+                                   
+                                   // Create stripped line (1 newline)
+                                   const newLineTokens = [...line];
+                                   newLineTokens[newLineTokens.length - 1] = { 
+                                       ...last, 
+                                       value: last.value.replace(/\n+/g, '\n') 
+                                   };
+                                   normalized.push(newLineTokens);
+                                   
+                                   // Add spacer lines
+                                   for(let k=1; k < newlineCount; k++) {
+                                       normalized.push([{ type: TokenType.Whitespace, value: '\n', line: 0, column: 0 }]);
+                                   }
+                              }
+                          }
+                          
+                          if (!hasExtraNewline) {
+                              normalized.push(line);
+                          }
+                      }
+                      
+                      // Replace otherLinesGroups with normalized version
+                      otherLinesGroups.splice(0, otherLinesGroups.length, ...normalized);
+                 }
+
+                 // OPTIONAL: Sort Fields within groups
                  if (options.orderField) {
-                     // 1. Normalize groups: Detach "Gap" (extra newlines) from content lines.
-                     // If a line ends with > 1 newline, split it into [ContentLine] + [EmptyLine]s.
-                     
-                     const normalized: Token[][] = [];
-                     
-                     for (const line of otherLinesGroups) {
-                         const last = line[line.length - 1];
-                         let hasExtraNewline = false;
-                         
-                         if (last && last.type === TokenType.Whitespace) {
-                             const newlineCount = (last.value.match(/\n/g) || []).length;
-                             if (newlineCount > 1) {
-                                  hasExtraNewline = true;
-                                  
-                                  // Create stripped line (1 newline)
-                                  const newLineTokens = [...line];
-                                  newLineTokens[newLineTokens.length - 1] = { 
-                                      ...last, 
-                                      value: last.value.replace(/\n+/g, '\n') 
-                                  };
-                                  normalized.push(newLineTokens);
-                                  
-                                  // Add spacer lines
-                                  for(let k=1; k < newlineCount; k++) {
-                                      normalized.push([{ type: TokenType.Whitespace, value: '\n', line: 0, column: 0 }]);
-                                  }
-                             }
-                         }
-                         
-                         if (!hasExtraNewline) {
-                             normalized.push(line);
-                         }
-                     }
-                     
-                     // Replace otherLinesGroups with normalized version
-                     otherLinesGroups.splice(0, otherLinesGroups.length, ...normalized);
 
                      // 2. Group lines by "is content" and Sort
                      
@@ -544,8 +546,23 @@ export function format(input: string, options: FormatterOptions = {}): string {
                      }
                  };
 
-                 // Align globally across all lines in the table (ignoring inter-field grouping)
-                 alignFieldBlock(otherLinesGroups);
+                 // Align by grouping (split by empty lines)
+                 let currentBlock: Token[][] = [];
+                 for (const line of otherLinesGroups) {
+                     const isWhitespace = line.every(t => t.type === TokenType.Whitespace);
+                     // console.log('Line tokens:', line.map(t => t.type + ':' + JSON.stringify(t.value)), 'isWhitespace:', isWhitespace);
+                     if (isWhitespace) {
+                         if (currentBlock.length > 0) {
+                             alignFieldBlock(currentBlock);
+                             currentBlock = [];
+                         }
+                     } else {
+                         currentBlock.push(line);
+                     }
+                 }
+                 if (currentBlock.length > 0) {
+                     alignFieldBlock(currentBlock);
+                 }
 
                  // 5c. Print Pass
                  for (let lgIdx = 0; lgIdx < otherLinesGroups.length; lgIdx++) {
