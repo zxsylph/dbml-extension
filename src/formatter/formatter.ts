@@ -3,6 +3,7 @@ import { Token, TokenType, tokenize } from './tokenizer';
 export interface FormatterOptions {
     indentSize?: number;
     useTabs?: boolean;
+    orderField?: boolean;
 }
 
 export function format(input: string, options: FormatterOptions = {}): string {
@@ -164,6 +165,88 @@ export function format(input: string, options: FormatterOptions = {}): string {
                  } else {
                      // NEW: If no table note, add empty Note: ""
                      output += getIndent() + 'Note: ""\n\n';
+                 }
+
+                 // OPTIONAL: Sort Fields within groups
+                 if (options.orderField) {
+                     // 1. Normalize groups: Detach "Gap" (extra newlines) from content lines.
+                     // If a line ends with > 1 newline, split it into [ContentLine] + [EmptyLine]s.
+                     
+                     const normalized: Token[][] = [];
+                     
+                     for (const line of otherLinesGroups) {
+                         const last = line[line.length - 1];
+                         let hasExtraNewline = false;
+                         
+                         if (last && last.type === TokenType.Whitespace) {
+                             const newlineCount = (last.value.match(/\n/g) || []).length;
+                             if (newlineCount > 1) {
+                                  hasExtraNewline = true;
+                                  
+                                  // Create stripped line (1 newline)
+                                  const newLineTokens = [...line];
+                                  newLineTokens[newLineTokens.length - 1] = { 
+                                      ...last, 
+                                      value: last.value.replace(/\n+/g, '\n') 
+                                  };
+                                  normalized.push(newLineTokens);
+                                  
+                                  // Add spacer lines
+                                  for(let k=1; k < newlineCount; k++) {
+                                      normalized.push([{ type: TokenType.Whitespace, value: '\n', line: 0, column: 0 }]);
+                                  }
+                             }
+                         }
+                         
+                         if (!hasExtraNewline) {
+                             normalized.push(line);
+                         }
+                     }
+                     
+                     // Replace otherLinesGroups with normalized version
+                     otherLinesGroups.splice(0, otherLinesGroups.length, ...normalized);
+
+                     // 2. Group lines by "is content" and Sort
+                     
+                     // Helper to check if line is content
+                     const isContentLine = (line: Token[]) => {
+                         const m = line.filter(x => x.type !== TokenType.Whitespace && x.type !== TokenType.Comment);
+                         return m.length > 0;
+                     };
+                     
+                     let i = 0;
+                     while(i < otherLinesGroups.length) {
+                         if (isContentLine(otherLinesGroups[i])) {
+                             // Start of a block
+                             let j = i + 1;
+                             while(j < otherLinesGroups.length && isContentLine(otherLinesGroups[j])) {
+                                 j++;
+                             }
+                             // Range [i, j) is a content block to sort
+                             const block = otherLinesGroups.slice(i, j);
+                             // Sort block
+                             block.sort((a, b) => {
+                                 const getFirstWord = (toks: Token[]) => {
+                                     const t = toks.find(x => x.type === TokenType.Word || x.type === TokenType.String);
+                                     return t ? t.value.replace(/^"|"$/g, '').toLowerCase() : '';
+                                 };
+                                 const wa = getFirstWord(a);
+                                 const wb = getFirstWord(b);
+                                 if (wa < wb) return -1;
+                                 if (wa > wb) return 1;
+                                 return 0;
+                             });
+                             
+                             // Put back
+                             for(let k=0; k<block.length; k++) {
+                                 otherLinesGroups[i+k] = block[k];
+                             }
+                             
+                             i = j;
+                         } else {
+                             i++;
+                         }
+                     }
                  }
                  
                  // 5. Print other lines (Process Fields)

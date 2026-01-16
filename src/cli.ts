@@ -12,7 +12,9 @@ if (args.length === 0) {
 
 const folderIndex = args.indexOf('--folder');
 const dryRunIndex = args.indexOf('--dry-run');
+const orderFieldIndex = args.indexOf('--order-field');
 const isDryRun = dryRunIndex !== -1;
+const orderField = orderFieldIndex !== -1;
 
 if (folderIndex !== -1) {
     // Folder mode
@@ -53,7 +55,7 @@ if (folderIndex !== -1) {
         files.forEach(file => {
              try {
                 const content = fs.readFileSync(file, 'utf-8');
-                const formatted = format(content);
+                const formatted = format(content, { orderField });
                 
                 if (isDryRun) {
                     console.log(`\n--- Dry Run: ${file} ---`);
@@ -86,7 +88,7 @@ if (folderIndex !== -1) {
 
     try {
         const content = fs.readFileSync(absPath, 'utf-8');
-        const formatted = format(content);
+        const formatted = format(content, { orderField });
         console.log(formatted);
     } catch (error) {
         console.error('Error formatting file:', error);
