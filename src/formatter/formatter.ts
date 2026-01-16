@@ -203,7 +203,7 @@ export function format(input: string, options: FormatterOptions = {}): string {
                                    const newLineTokens = [...line];
                                    newLineTokens[newLineTokens.length - 1] = { 
                                        ...last, 
-                                       value: last.value.replace(/\n+/g, '\n') 
+                                       value: '\n' 
                                    };
                                    normalized.push(newLineTokens);
                                    
