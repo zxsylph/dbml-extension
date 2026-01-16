@@ -818,26 +818,38 @@ function processTokens(
                           localOutput += '\n'; 
                       }
                  } else if (token.value === ']') {
-                      const isMultiline = multilineArrayStack.pop();
-                      if (isMultiline) {
-                          // Ensure new line if content exists on current line
-                          const lastLineFormatted = localOutput.substring(localOutput.lastIndexOf('\n') + 1);
-                          if (lastLineFormatted.trim().length > 0) {
-                              localOutput += '\n';
-                          }
-                          
-                          // We are currently at Content Indent.
-                          // Pop to get back to Anchor Indent.
-                          indentStack.pop();
-                          
-                          localOutput += getCurrentIndent(); // Anchor Indent
-                          localOutput += ']';
-                          
-                          // Pop Anchor Indent
-                          indentStack.pop();
-                      } else {
-                          localOutput += ']';
-                      }
+                       const isMultiline = multilineArrayStack.pop();
+                       if (isMultiline) {
+                           // We are currently at Content Indent level (top of stack).
+                           // But for the closing bracket, we want to go back to Anchor Indent level.
+                           
+                           // First, remove Content Indent from stack
+                           indentStack.pop();
+                           
+                           // Now top of stack is Anchor Indent.
+                           const anchorIndent = getCurrentIndent();
+                           
+                           // Check what's currently on the last line.
+                           // The main loop might have already added indentation (Content Indent).
+                           const lastNewline = localOutput.lastIndexOf('\n');
+                           const lastLineFormatted = localOutput.substring(lastNewline + 1);
+                           
+                           if (lastLineFormatted.trim().length === 0) {
+                               // usage-case: The line is empty or just contains the indentation added by the loop.
+                               // We should replace that indentation with our Anchor Indent.
+                               localOutput = localOutput.substring(0, lastNewline + 1) + anchorIndent;
+                           } else {
+                               // There is content on this line. We need a new line.
+                               localOutput += '\n' + anchorIndent;
+                           }
+                           
+                           localOutput += ']';
+                           
+                           // Finally, pop the Anchor Indent so we return to previous base indent
+                           indentStack.pop();
+                       } else {
+                           localOutput += ']';
+                       }
                  } else if (token.value === ',') {
                       localOutput += ',';
                       const currentMultiline = multilineArrayStack.length > 0 && multilineArrayStack[multilineArrayStack.length - 1];
