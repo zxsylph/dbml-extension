@@ -1,0 +1,5 @@
+Table User {
+  id integer [pk]
+  username varchar
+  email varchar [unique]
+}

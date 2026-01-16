@@ -224,7 +224,88 @@ export function format(input: string, options: FormatterOptions = {}): string {
                          }
                      }
                      
-                     // 6. Apply "Quote Data Types" logic
+                     // 6. Apply "Empty Field Note" logic
+                     const meaningful = lineTokens.filter(t => t.type !== TokenType.Whitespace && t.type !== TokenType.Comment);
+                     // Heuristic: Is this a field? 
+                     // It should have at least 2 tokens (Name, Type). 
+                     // It should NOT be 'indexes'.
+                     // It should NOT contain '{' (which would imply a block start like indexes { )
+                     
+                     let isField = false;
+                     if (meaningful.length >= 2) {
+                         const firstWord = meaningful[0].value.toLowerCase();
+                         if (firstWord !== 'indexes' && firstWord !== 'note') {
+                              // Check for braces in original lineTokens to avoid sub-blocks
+                              const hasBrace = lineTokens.some(t => t.type === TokenType.Symbol && t.value === '{');
+                              if (!hasBrace) {
+                                  isField = true;
+                              }
+                         }
+                     }
+                     
+                     if (isField) {
+                         // Find settings block
+                         let openBracketIdx = -1;
+                         let closeBracketIdx = -1;
+                         for(let idx=0; idx<lineTokens.length; idx++) {
+                             if (lineTokens[idx].type === TokenType.Symbol && lineTokens[idx].value === '[') openBracketIdx = idx;
+                             if (lineTokens[idx].type === TokenType.Symbol && lineTokens[idx].value === ']') closeBracketIdx = idx;
+                         }
+                         
+                         if (openBracketIdx !== -1 && closeBracketIdx !== -1 && closeBracketIdx > openBracketIdx) {
+                             // Settings exist. Check if 'note' is present.
+                             const inside = lineTokens.slice(openBracketIdx + 1, closeBracketIdx);
+                             let hasNote = false;
+                             
+                             // Simple token scan for 'note' word
+                             // Ideally we should parse comma groups, but 'note' keyword is reserved in settings.
+                             for (const t of inside) {
+                                 if (t.type === TokenType.Word && t.value.toLowerCase() === 'note') {
+                                     hasNote = true;
+                                     break;
+                                 }
+                             }
+                             
+                             if (!hasNote) {
+                                 // Insert `note: ""` at the beginning of settings
+                                 // We need to insert: "note", ":", "\"\"", ","
+                                 // REMOVED explicit spaces
+                                 const newTokens: Token[] = [
+                                     { type: TokenType.Word, value: 'note', line: 0, column: 0 },
+                                     { type: TokenType.Symbol, value: ':', line: 0, column: 0 },
+                                     { type: TokenType.String, value: '""', line: 0, column: 0 },
+                                     { type: TokenType.Symbol, value: ',', line: 0, column: 0 }
+                                 ];
+                                 lineTokens.splice(openBracketIdx + 1, 0, ...newTokens);
+                             }
+                         } else {
+                             // No settings exist. Append ` [note: ""]`.
+                             // REMOVED explicit spaces
+                             
+                             // Find last meaningful token index
+                             let lastMeaningfulIdx = -1;
+                             for (let idx = lineTokens.length - 1; idx >= 0; idx--) {
+                                 if (lineTokens[idx].type !== TokenType.Whitespace && lineTokens[idx].type !== TokenType.Comment) {
+                                     lastMeaningfulIdx = idx;
+                                     break;
+                                 }
+                             }
+                             
+                             if (lastMeaningfulIdx !== -1) {
+                                 const appendTokens: Token[] = [
+                                     { type: TokenType.Symbol, value: '[', line: 0, column: 0 },
+                                     { type: TokenType.Word, value: 'note', line: 0, column: 0 },
+                                     { type: TokenType.Symbol, value: ':', line: 0, column: 0 },
+                                     { type: TokenType.String, value: '""', line: 0, column: 0 },
+                                     { type: TokenType.Symbol, value: ']', line: 0, column: 0 }
+                                 ];
+                                 lineTokens.splice(lastMeaningfulIdx + 1, 0, ...appendTokens);
+                             }
+                         }
+                     }
+
+                     // 7. Apply "Quote Data Types" logic
+
                     let wordCount = 0;
                     for (const t of lineTokens) {
                          // Only count words before `[`?
