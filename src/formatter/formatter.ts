@@ -660,10 +660,13 @@ export function format(input: string, options: FormatterOptions = {}): string {
         }
 
         // Apply spacing based on GLOBAL `output`
+        if (token.type === TokenType.Symbol && token.value === '}') {
+             indentLevel--;
+             if (indentLevel < 0) indentLevel = 0;
+        }
+
         if (output.endsWith('\n')) {
-             if (token.value !== '}') {
-                 output += getIndent();
-             }
+             output += getIndent();
         } else if (output.length > 0) {
             let needsSpace = true;
             const lastChar = output[output.length - 1];
@@ -720,6 +723,10 @@ export function format(input: string, options: FormatterOptions = {}): string {
             default:
                 output += token.value;
                 break;
+        }
+        
+        if (token.type === TokenType.Symbol && token.value === '{') {
+            indentLevel++;
         }
         
         i++;
