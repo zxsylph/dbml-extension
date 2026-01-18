@@ -579,6 +579,7 @@ export function format(input: string, options: FormatterOptions = {}): string {
                  // End block
                  indentLevel--; 
                  if (!output.endsWith('\n')) output += '\n';
+                 if (!output.endsWith('\n\n')) output += '\n';
                  output += getIndent() + '}'; 
                  
                  // Rule: after table close } add on empty line
